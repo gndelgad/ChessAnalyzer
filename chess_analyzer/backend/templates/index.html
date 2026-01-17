@@ -11,16 +11,29 @@ button { margin-top: 10px; padding: 5px 10px; }
 </style>
 </head>
 <body>
+
 <h1>Chess Game Analyzer</h1>
-<label>Chess.com Username: <input type="text" id="username" /></label>
+
+<label>
+  Chess.com Username:
+  <input type="text" id="username" />
+</label>
 <button onclick="fetchGames()">Fetch Last 10 Games</button>
 
 <table id="gamesTable" style="display:none">
 <thead>
-<tr><th>White</th><th>Black</th><th>Result</th><th>Action</th></tr>
+<tr>
+  <th>White</th>
+  <th>Black</th>
+  <th>Result</th>
+</tr>
 </thead>
 <tbody></tbody>
 </table>
+
+<button id="analyzeAllBtn" style="display:none" onclick="analyzeAllGames()">
+  Analyze All Games
+</button>
 
 <h2>LLM Analysis</h2>
 <div id="analysis"></div>
@@ -33,35 +46,48 @@ async function fetchGames() {
 
     const tbody = document.querySelector("#gamesTable tbody");
     tbody.innerHTML = "";
-    games.forEach((g, idx) => {
+
+    games.forEach(g => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td>${g.white}</td>
             <td>${g.black}</td>
             <td>${g.result}</td>
-            <td><button onclick="analyzeGame('${idx}')">Analyze</button></td>
         `;
         tbody.appendChild(tr);
     });
-    window.gameData = games;  // store globally
+
+    window.gameData = games;  // store all games globally
+
     document.getElementById("gamesTable").style.display = "table";
+    document.getElementById("analyzeAllBtn").style.display = "inline-block";
 }
 
-async function analyzeGame(index) {
-    const pgn = window.gameData[index].pgn;
-    const res = await fetch("/api/analyze", {
+async function analyzeAllGames() {
+    const pgns = window.gameData.map(g => g.pgn);
+
+    document.getElementById("analysis").innerHTML = "Analyzing all games...";
+
+    const res = await fetch("/api/analyze-all", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pgn })
+        body: JSON.stringify({ pgns })
     });
+
     const data = await res.json();
 
     document.getElementById("analysis").innerHTML = `
-        <h3>Opening</h3><pre>${data.textual_analysis.opening}</pre>
-        <h3>Middlegame</h3><pre>${data.textual_analysis.middlegame}</pre>
-        <h3>Endgame</h3><pre>${data.textual_analysis.endgame}</pre>
+        <h3>Openings (All Games)</h3>
+        <pre>${data.textual_analysis.openings}</pre>
+
+        <h3>Middlegame Themes</h3>
+        <pre>${data.textual_analysis.middlegame}</pre>
+
+        <h3>Endgames</h3>
+        <pre>${data.textual_analysis.endgame}</pre>
     `;
 }
 </script>
+
 </body>
 </html>
