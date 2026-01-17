@@ -2,11 +2,18 @@
 
 set -e
 
-echo "Downloading Stockfish..."
-curl -L https://stockfishchess.org/files/stockfish_15.1_linux_x64_avx2.zip -o stockfish.zip
+echo "Downloading Stockfish (Linux x86_64 AVX2)..."
 
-unzip stockfish.zip
-mv stockfish_15.1_linux_x64_avx2/stockfish stockfish
+curl -L \
+  https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-ubuntu-x86-64-avx2.tar \
+  -o stockfish.tar
+
+echo "Extracting Stockfish..."
+tar -xf stockfish.tar
+
+# The extracted binary is named: stockfish-ubuntu-x86-64-avx2
+mv stockfish-ubuntu-x86-64-avx2 stockfish
+
 chmod +x stockfish
 
-echo "Stockfish ready."
+echo "Stockfish installed successfully"
