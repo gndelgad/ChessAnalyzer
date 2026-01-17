@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chess Game Analyzer</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 40px; }
+table { border-collapse: collapse; margin-top: 20px; }
+td, th { border: 1px solid #ccc; padding: 8px; }
+button { margin-top: 10px; padding: 5px 10px; }
+</style>
+</head>
+<body>
+<h1>Chess Game Analyzer</h1>
+<label>Chess.com Username: <input type="text" id="username" /></label>
+<button onclick="fetchGames()">Fetch Last 10 Games</button>
+
+<table id="gamesTable" style="display:none">
+<thead>
+<tr><th>White</th><th>Black</th><th>Result</th><th>Action</th></tr>
+</thead>
+<tbody></tbody>
+</table>
+
+<h2>LLM Analysis</h2>
+<div id="analysis"></div>
+
+<script>
+async function fetchGames() {
+    const username = document.getElementById("username").value;
+    const res = await fetch(`/api/games/${username}`);
+    const games = await res.json();
+
+    const tbody = document.querySelector("#gamesTable tbody");
+    tbody.innerHTML = "";
+    games.forEach((g, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${g.white}</td>
+            <td>${g.black}</td>
+            <td>${g.result}</td>
+            <td><button onclick="analyzeGame('${idx}')">Analyze</button></td>
+        `;
+        tbody.appendChild(tr);
+    });
+    window.gameData = games;  // store globally
+    document.getElementById("gamesTable").style.display = "table";
+}
+
+async function analyzeGame(index) {
+    const pgn = window.gameData[index].pgn;
+    const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pgn })
+    });
+    const data = await res.json();
+
+    document.getElementById("analysis").innerHTML = `
+        <h3>Opening</h3><pre>${data.textual_analysis.opening}</pre>
+        <h3>Middlegame</h3><pre>${data.textual_analysis.middlegame}</pre>
+        <h3>Endgame</h3><pre>${data.textual_analysis.endgame}</pre>
+    `;
+}
+</script>
+</body>
+</html>
