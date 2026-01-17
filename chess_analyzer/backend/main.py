@@ -255,11 +255,11 @@ def analyze_all_games(payload: dict, request: Request):
             board = game.board()
             evaluations = []
 
-            # Collect all legal moves
-            moves = [move for move in game.mainline_moves() if move in board.legal_moves]
+            # Collect legal moves
+            moves = [move for move in game.mainline_moves() if move is not None]
             total_moves = len(moves)
 
-            # Sample moves: 3–5 per phase
+            # Sample indices per phase for fast analysis
             def sample_indices(n_samples, start, end):
                 if end - start <= n_samples:
                     return list(range(start, end))
@@ -269,33 +269,41 @@ def analyze_all_games(payload: dict, request: Request):
             opening_idx = sample_indices(3, 0, total_moves // 3)
             middlegame_idx = sample_indices(4, total_moves // 3, 2 * total_moves // 3)
             endgame_idx = sample_indices(3, 2 * total_moves // 3, total_moves)
-
-            # Map indices to a set for fast lookup
             sample_set = set(opening_idx + middlegame_idx + endgame_idx)
 
+            # Iterate moves
             for i, move in enumerate(moves):
+                # Skip illegal moves but maintain board state
+                if move not in board.legal_moves:
+                    board.push(move)
+                    continue
+
                 try:
                     san = board.san(move)
                 except AssertionError:
+                    board.push(move)
                     continue
 
                 board.push(move)
+
                 if i not in sample_set:
-                    continue
+                    continue  # only analyze selected moves
 
-                info = engine.analyse(
-                    board,
-                    chess.engine.Limit(depth=6, time=0.03)  # very fast
-                )
+                try:
+                    info = engine.analyse(
+                        board,
+                        chess.engine.Limit(depth=6, time=0.03)  # fast
+                    )
+                    score = info["score"].white().score(mate_score=10000)
+                    evaluations.append({
+                        "move_number": i + 1,
+                        "san": san,
+                        "evaluation": score
+                    })
+                except chess.engine.EngineError:
+                    continue  # skip illegal UCI moves
 
-                score = info["score"].white().score(mate_score=10000)
-                evaluations.append({
-                    "move_number": i + 1,
-                    "san": san,
-                    "evaluation": score
-                })
-
-            # Split by phase (simple)
+            # Split sampled moves into phases
             total = len(evaluations)
             opening = evaluations[: total // 3]
             middlegame = evaluations[total // 3 : 2 * total // 3]
@@ -310,14 +318,13 @@ def analyze_all_games(payload: dict, request: Request):
     finally:
         engine.quit()
 
-    # LLM global analysis
+    # Global LLM analysis (structured JSON)
     llm_text = run_llm_analysis(all_evaluations)
 
     return {
-        "phases": all_evaluations,
-        "textual_analysis": llm_text
+        "phases": all_evaluations,        # per-game evaluation
+        "textual_analysis": llm_text      # structured LLM summary
     }
-
 
 # =========================
 # Health check (Render)
