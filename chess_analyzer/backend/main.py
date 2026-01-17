@@ -79,19 +79,6 @@ def get_last_games(username: str, request: Request):
 
     archives_url = f"https://api.chess.com/pub/player/{username}/games/archives"
 
-    
-    # try:
-    #     archives_resp = requests.get(archives_url, timeout=10, verify="/etc/ssl/certs/ca-certificates.crt")
-    # except requests.RequestException as exc:
-    #     # External service error / network problem
-    #     raise HTTPException(status_code=502, detail="Upstream service unreachable") from exc
-
-    # if archives_resp.status_code == 404:
-    #     raise HTTPException(status_code=404, detail="User not found")
-    # if archives_resp.status_code != 200:
-    #     # Unexpected upstream status
-    #     raise HTTPException(status_code=502, detail="Upstream service error")
-
     data = json.loads(curl_get(archives_url))
     archives = data.get("archives", [])
     
@@ -126,26 +113,36 @@ def get_last_games(username: str, request: Request):
 # =========================
 # LLM analysis (OpenAI)
 # =========================
-
-def run_llm_analysis(analysis_data: dict) -> dict:
+def run_llm_analysis(all_games_eval: list) -> dict:
+    """
+    Receives a list of game evaluations (opening/middlegame/endgame) and returns
+    a global JSON analysis for frontend consumption.
+    """
     import openai
+    import json
 
     openai.api_key = OPENAI_API_KEY
+
+    # Convert evaluation data into JSON string for LLM prompt
+    analysis_data_json = json.dumps(all_games_eval, indent=2)
 
     prompt = f"""
 You are a chess coach.
 
-Analyze the following chess game evaluation and provide a clear, human explanation
-for each phase of the game:
-- Opening
-- Middlegame
-- Endgame
+Analyze the following chess game evaluations (multiple games) and provide a **global summary**.
+Return the result in **JSON** format exactly like this:
 
-Focus on ideas, plans, and common mistakes.
-Avoid long tactical variations.
+{{
+  "openings": "...summary of common opening ideas/mistakes...",
+  "middlegame": "...summary of middlegame ideas/mistakes...",
+  "endgame": "...summary of endgame ideas/mistakes..."
+}}
+
+Focus on common mistakes, plans, and patterns across all games.
+Do not include move-by-move analysis.
 
 Game evaluation data:
-{analysis_data}
+{analysis_data_json}
 """
 
     response = openai.ChatCompletion.create(
@@ -156,11 +153,16 @@ Game evaluation data:
 
     text = response.choices[0].message.content
 
-    return {
-        "opening": extract_section(text, "Opening"),
-        "middlegame": extract_section(text, "Middlegame"),
-        "endgame": extract_section(text, "Endgame"),
-    }
+    # Try parsing JSON; fallback if LLM returns invalid JSON
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {
+            "openings": text,
+            "middlegame": text,
+            "endgame": text
+        }
+
 
 def extract_section(text: str, title: str) -> str:
     for block in text.split("\n\n"):
@@ -230,10 +232,9 @@ def analyze_game(payload: dict, request: Request):
 # =========================
 # Analyze all games at once
 # =========================
-
 @app.post("/api/analyze-all")
 def analyze_all_games(payload: dict, request: Request):
-    #check_api_key(request)
+    # check_api_key(request)
 
     pgns = payload.get("pgns")
     if not pgns or not isinstance(pgns, list):
@@ -253,32 +254,48 @@ def analyze_all_games(payload: dict, request: Request):
 
             board = game.board()
             evaluations = []
-            move_count = 0
 
-            for move in game.mainline_moves():
-                if move not in board.legal_moves:
-                    continue  # skip illegal/malformed moves
-                san = board.san(move)
-                board.push(move)
-                move_count += 1
-            
-                # analyze only every 2 moves
-                if move_count % 2 != 0:
+            # Collect all legal moves
+            moves = [move for move in game.mainline_moves() if move in board.legal_moves]
+            total_moves = len(moves)
+
+            # Sample moves: 3–5 per phase
+            def sample_indices(n_samples, start, end):
+                if end - start <= n_samples:
+                    return list(range(start, end))
+                step = max(1, (end - start) // n_samples)
+                return list(range(start, end, step))
+
+            opening_idx = sample_indices(3, 0, total_moves // 3)
+            middlegame_idx = sample_indices(4, total_moves // 3, 2 * total_moves // 3)
+            endgame_idx = sample_indices(3, 2 * total_moves // 3, total_moves)
+
+            # Map indices to a set for fast lookup
+            sample_set = set(opening_idx + middlegame_idx + endgame_idx)
+
+            for i, move in enumerate(moves):
+                try:
+                    san = board.san(move)
+                except AssertionError:
                     continue
-            
+
+                board.push(move)
+                if i not in sample_set:
+                    continue
+
                 info = engine.analyse(
                     board,
-                    chess.engine.Limit(depth=8, time=0.05)  # faster
+                    chess.engine.Limit(depth=6, time=0.03)  # very fast
                 )
-            
+
                 score = info["score"].white().score(mate_score=10000)
                 evaluations.append({
-                    "move_number": move_count,
+                    "move_number": i + 1,
                     "san": san,
                     "evaluation": score
                 })
 
-            # Split into phases
+            # Split by phase (simple)
             total = len(evaluations)
             opening = evaluations[: total // 3]
             middlegame = evaluations[total // 3 : 2 * total // 3]
@@ -293,14 +310,13 @@ def analyze_all_games(payload: dict, request: Request):
     finally:
         engine.quit()
 
-    # Prepare one big LLM analysis with all games
+    # LLM global analysis
     llm_text = run_llm_analysis(all_evaluations)
 
     return {
         "phases": all_evaluations,
         "textual_analysis": llm_text
     }
-
 
 
 # =========================
