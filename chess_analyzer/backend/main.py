@@ -195,8 +195,7 @@ def analyze_game(payload: dict, request: Request):
 
             info = engine.analyse(
                 board,
-                chess.engine.Limit(depth=12),
-                chess.engine.Limit(time=0.5)
+                chess.engine.Limit(depth=12, time=0.5)
             )
 
             score = info["score"].white().score(mate_score=10000)
