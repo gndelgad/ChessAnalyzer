@@ -58,11 +58,19 @@ def get_last_games(username: str, request: Request):
     #check_api_key(request)
 
     archives_url = f"https://api.chess.com/pub/player/{username}/games/archives"
-    archives_resp = requests.get(archives_url, timeout=10)
+    
+    try:
+        archives_resp = requests.get(archives_url, timeout=10)
+    except requests.RequestException as exc:
+        # External service error / network problem
+        raise HTTPException(status_code=502, detail="Upstream service unreachable") from exc
 
-    if archives_resp.status_code != 200:
+    if archives_resp.status_code == 404:
         raise HTTPException(status_code=404, detail="User not found")
-
+    if archives_resp.status_code != 200:
+        # Unexpected upstream status
+        raise HTTPException(status_code=502, detail="Upstream service error")
+    
     archives = archives_resp.json().get("archives", [])
     if not archives:
         return []
