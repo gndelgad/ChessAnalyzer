@@ -228,6 +228,75 @@ def analyze_game(payload: dict, request: Request):
     }
 
 # =========================
+# Analyze all games at once
+# =========================
+
+@app.post("/api/analyze-all")
+def analyze_all_games(payload: dict, request: Request):
+    #check_api_key(request)
+
+    pgns = payload.get("pgns")
+    if not pgns or not isinstance(pgns, list):
+        raise HTTPException(status_code=400, detail="PGNs missing or invalid")
+
+    engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
+    all_evaluations = []
+
+    try:
+        for pgn_text in pgns:
+            if not pgn_text:
+                continue
+
+            game = chess.pgn.read_game(io.StringIO(pgn_text))
+            if game is None:
+                continue
+
+            board = game.board()
+            evaluations = []
+            move_count = 0
+
+            for move in game.mainline_moves():
+                board.push(move)
+                move_count += 1
+
+                info = engine.analyse(
+                    board,
+                    chess.engine.Limit(depth=12, time=0.5)
+                )
+
+                score = info["score"].white().score(mate_score=10000)
+                evaluations.append({
+                    "move_number": move_count,
+                    "san": board.san(move),
+                    "evaluation": score
+                })
+
+            # Split into phases
+            total = len(evaluations)
+            opening = evaluations[: total // 3]
+            middlegame = evaluations[total // 3 : 2 * total // 3]
+            endgame = evaluations[2 * total // 3 :]
+
+            all_evaluations.append({
+                "opening": opening,
+                "middlegame": middlegame,
+                "endgame": endgame
+            })
+
+    finally:
+        engine.quit()
+
+    # Prepare one big LLM analysis with all games
+    llm_text = run_llm_analysis(all_evaluations)
+
+    return {
+        "phases": all_evaluations,
+        "textual_analysis": llm_text
+    }
+
+
+
+# =========================
 # Health check (Render)
 # =========================
 
