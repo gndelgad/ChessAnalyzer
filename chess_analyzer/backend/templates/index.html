@@ -4,38 +4,68 @@
 <meta charset="UTF-8">
 <title>Chess Game Analyzer</title>
 <style>
-body { font-family: Arial, sans-serif; margin: 40px; }
-table { border-collapse: collapse; margin-top: 20px; }
-td, th { border: 1px solid #ccc; padding: 8px; }
-button { margin-top: 10px; padding: 5px 10px; }
+    body {
+        font-family: Arial, sans-serif;
+        margin: 40px;
+        background-color: #121212;
+        color: #f0f0f0;
+    }
+    table {
+        border-collapse: collapse;
+        margin-top: 20px;
+        width: 100%;
+    }
+    td, th {
+        border: 1px solid #444;
+        padding: 8px;
+    }
+    button {
+        margin-top: 10px;
+        padding: 5px 10px;
+        cursor: pointer;
+        background-color: #333;
+        color: #f0f0f0;
+        border: 1px solid #555;
+        border-radius: 4px;
+    }
+    input {
+        padding: 4px 6px;
+        border-radius: 4px;
+        border: 1px solid #555;
+        background-color: #222;
+        color: #f0f0f0;
+    }
+    h1, h2, h3 {
+        margin-top: 20px;
+    }
+    pre {
+        background-color: #1e1e1e;
+        padding: 10px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        border-radius: 6px;
+    }
+    #analysis > div {
+        margin-bottom: 20px;
+    }
 </style>
 </head>
 <body>
-
 <h1>Chess Game Analyzer</h1>
 
-<label>
-  Chess.com Username:
-  <input type="text" id="username" />
-</label>
+<label>Chess.com Username: <input type="text" id="username" /></label>
 <button onclick="fetchGames()">Fetch Last 10 Games</button>
+<button onclick="analyzeAll()">Analyze All Games</button>
 
 <table id="gamesTable" style="display:none">
-<thead>
-<tr>
-  <th>White</th>
-  <th>Black</th>
-  <th>Result</th>
-</tr>
-</thead>
-<tbody></tbody>
+    <thead>
+        <tr><th>White</th><th>Black</th><th>Result</th></tr>
+    </thead>
+    <tbody></tbody>
 </table>
 
-<button id="analyzeAllBtn" style="display:none" onclick="analyzeAllGames()">
-  Analyze All Games
-</button>
-
-<h2>LLM Analysis</h2>
+<h2>LLM Analysis (All Games)</h2>
 <div id="analysis"></div>
 
 <script>
@@ -46,7 +76,6 @@ async function fetchGames() {
 
     const tbody = document.querySelector("#gamesTable tbody");
     tbody.innerHTML = "";
-
     games.forEach(g => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -56,38 +85,41 @@ async function fetchGames() {
         `;
         tbody.appendChild(tr);
     });
-
-    window.gameData = games;  // store all games globally
-
+    window.gameData = games;  // store globally
     document.getElementById("gamesTable").style.display = "table";
-    document.getElementById("analyzeAllBtn").style.display = "inline-block";
 }
 
-async function analyzeAllGames() {
-    const pgns = window.gameData.map(g => g.pgn);
+async function analyzeAll() {
+    if (!window.gameData || window.gameData.length === 0) return alert("Fetch games first!");
+    const username = document.getElementById("username").value;
 
-    document.getElementById("analysis").innerHTML = "Analyzing all games...";
+    const pgns = window.gameData.map(g => g.pgn);
 
     const res = await fetch("/api/analyze-all", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pgns })
+        body: JSON.stringify({ username, pgns })
     });
 
     const data = await res.json();
+    const ta = data.textual_analysis;
 
+    // Display sections cleanly
     document.getElementById("analysis").innerHTML = `
-        <h3>Openings (All Games)</h3>
-        <pre>${data.textual_analysis.openings}</pre>
-
-        <h3>Middlegame Themes</h3>
-        <pre>${data.textual_analysis.middlegame}</pre>
-
-        <h3>Endgames</h3>
-        <pre>${data.textual_analysis.endgame}</pre>
+        <div>
+            <h3>Openings (All Games)</h3>
+            <pre>${ta.openings}</pre>
+        </div>
+        <div>
+            <h3>Middlegame Themes</h3>
+            <pre>${ta.middlegame}</pre>
+        </div>
+        <div>
+            <h3>Endgames</h3>
+            <pre>${ta.endgame}</pre>
+        </div>
     `;
 }
 </script>
-
 </body>
 </html>
