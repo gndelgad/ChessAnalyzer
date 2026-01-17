@@ -24,6 +24,23 @@ if not OPENAI_API_KEY:
 # Stockfish binary (downloaded by setup script)
 STOCKFISH_PATH = os.path.join(os.getcwd(), "stockfish")
 
+def curl_get(url, timeout=10):
+    """GET request via curl, returns raw text"""
+    result = subprocess.run(
+        [
+            "curl",
+            "-s",
+            "--fail",
+            "--max-time", str(timeout),
+            "-H", "Accept: application/json",
+            url,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout
+
 # =========================
 # FastAPI app
 # =========================
@@ -58,26 +75,33 @@ def get_last_games(username: str, request: Request):
     #check_api_key(request)
 
     archives_url = f"https://api.chess.com/pub/player/{username}/games/archives"
-    
-    try:
-        archives_resp = requests.get(archives_url, timeout=10, verify="/etc/ssl/certs/ca-certificates.crt")
-    except requests.RequestException as exc:
-        # External service error / network problem
-        raise HTTPException(status_code=502, detail="Upstream service unreachable") from exc
 
-    if archives_resp.status_code == 404:
-        raise HTTPException(status_code=404, detail="User not found")
-    if archives_resp.status_code != 200:
-        # Unexpected upstream status
-        raise HTTPException(status_code=502, detail="Upstream service error")
     
-    archives = archives_resp.json().get("archives", [])
+    # try:
+    #     archives_resp = requests.get(archives_url, timeout=10, verify="/etc/ssl/certs/ca-certificates.crt")
+    # except requests.RequestException as exc:
+    #     # External service error / network problem
+    #     raise HTTPException(status_code=502, detail="Upstream service unreachable") from exc
+
+    # if archives_resp.status_code == 404:
+    #     raise HTTPException(status_code=404, detail="User not found")
+    # if archives_resp.status_code != 200:
+    #     # Unexpected upstream status
+    #     raise HTTPException(status_code=502, detail="Upstream service error")
+
+    url = f"https://api.chess.com/pub/player/{username}/games/archives"
+    data = json.loads(curl_get(archives_url))
+    archives = data.get("archives", [])
+    
+    #archives = archives_resp.json().get("archives", [])
     if not archives:
         return []
 
     games = []
     for archive_url in reversed(archives):
-        month_games = requests.get(archive_url, timeout=10, verify="/etc/ssl/certs/ca-certificates.crt").json().get("games", [])
+        data = json.loads(curl_get(archive_url))
+        month_games = data.get("games", [])
+        #month_games = requests.get(archive_url, timeout=10, ).json().get("games", [])
         for g in reversed(month_games):
             games.append({
                 "white": g["white"]["username"],
