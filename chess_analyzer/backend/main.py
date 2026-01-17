@@ -256,18 +256,25 @@ def analyze_all_games(payload: dict, request: Request):
             move_count = 0
 
             for move in game.mainline_moves():
+                if move not in board.legal_moves:
+                    continue  # skip illegal/malformed moves
+                san = board.san(move)
                 board.push(move)
                 move_count += 1
-
+            
+                # analyze only every 2 moves
+                if move_count % 2 != 0:
+                    continue
+            
                 info = engine.analyse(
                     board,
-                    chess.engine.Limit(depth=12, time=0.5)
+                    chess.engine.Limit(depth=8, time=0.05)  # faster
                 )
-
+            
                 score = info["score"].white().score(mate_score=10000)
                 evaluations.append({
                     "move_number": move_count,
-                    "san": board.san(move),
+                    "san": san,
                     "evaluation": score
                 })
 
