@@ -36,10 +36,10 @@ templates = Jinja2Templates(directory="templates")
 # Utility: simple API key protection
 # =========================
 
-def check_api_key(request: Request):
-    if APP_SECRET_KEY:
-        if request.headers.get("X-API-Key") != APP_SECRET_KEY:
-            raise HTTPException(status_code=401, detail="Unauthorized")
+#def check_api_key(request: Request):
+#    if APP_SECRET_KEY:
+#        if request.headers.get("X-API-Key") != APP_SECRET_KEY:
+#            raise HTTPException(status_code=401, detail="Unauthorized")
 
 # =========================
 # Frontend
