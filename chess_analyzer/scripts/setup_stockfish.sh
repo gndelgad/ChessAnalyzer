@@ -10,10 +10,10 @@ set -e
 echo "=== Checking OpenSSL Version ==="
 openssl version
 
-echo "=== Checking CA Certificates ==="
+#echo "=== Checking CA Certificates ==="
 # List CA certificates (optional)
-ls -l /etc/ssl/certs/ | head -n 10
-echo ""
+#ls -l /etc/ssl/certs/ | head -n 10
+#echo ""
 
 echo "=== Testing connection to Chess.com API ==="
 # Run curl in verbose mode, capturing both stdout and stderr
