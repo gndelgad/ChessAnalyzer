@@ -3,3 +3,4 @@ uvicorn
 requests
 python-chess
 jinja2
+openai
