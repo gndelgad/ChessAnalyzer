@@ -1,100 +1,202 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+import os
+import io
 import requests
+import chess
 import chess.pgn
 import chess.engine
-import io
-import os
 
-app = FastAPI()
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 
-# Serve static files & templates
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# =========================
+# Environment variables
+# =========================
+
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+#APP_SECRET_KEY = os.environ.get("APP_SECRET_KEY")  # optional
+MAX_GAMES = int(os.environ.get("MAX_GAMES_ANALYZED", 10))
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY is not set")
+
+# Stockfish binary (downloaded by setup script)
+STOCKFISH_PATH = os.path.join(os.getcwd(), "stockfish")
+
+# =========================
+# FastAPI app
+# =========================
+
+app = FastAPI(title="Chess Analyzer")
+
 templates = Jinja2Templates(directory="templates")
 
-# Path to Stockfish binary
-STOCKFISH_PATH = "./stockfish"
+# =========================
+# Utility: simple API key protection
+# =========================
 
-# LLM placeholder (replace with OpenAI or any LLM API)
-def llm_analysis(summary_json):
-    # For simplicity, just return a dummy analysis
-    return {
-        "opening": "Opening phase analysis: You played solidly.",
-        "middlegame": "Middlegame: You missed some tactical opportunities.",
-        "endgame": "Endgame: You converted your advantage cleanly."
-    }
+def check_api_key(request: Request):
+    if APP_SECRET_KEY:
+        if request.headers.get("X-API-Key") != APP_SECRET_KEY:
+            raise HTTPException(status_code=401, detail="Unauthorized")
 
-# Serve frontend
+# =========================
+# Frontend
+# =========================
+
 @app.get("/", response_class=HTMLResponse)
-def get_frontend(request: Request):
+def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# Fetch last 10 games from Chess.com
+# =========================
+# Chess.com API
+# =========================
+
 @app.get("/api/games/{username}")
-def get_last_10_games(username: str):
-    url = f"https://api.chess.com/pub/player/{username}/games/archives"
-    archives = requests.get(url).json().get("archives", [])
+def get_last_games(username: str, request: Request):
+    check_api_key(request)
+
+    archives_url = f"https://api.chess.com/pub/player/{username}/games/archives"
+    archives_resp = requests.get(archives_url, timeout=10)
+
+    if archives_resp.status_code != 200:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    archives = archives_resp.json().get("archives", [])
     if not archives:
-        return JSONResponse({"error": "No games found"}, status_code=404)
+        return []
 
-    # Take last month archive first
-    latest_archive = archives[-1]
-    games_resp = requests.get(latest_archive).json()
-    games = games_resp.get("games", [])[-10:]  # last 10 games
+    games = []
+    for archive_url in reversed(archives):
+        month_games = requests.get(archive_url, timeout=10).json().get("games", [])
+        for g in reversed(month_games):
+            games.append({
+                "white": g["white"]["username"],
+                "black": g["black"]["username"],
+                "result": (
+                    g["white"]["result"]
+                    if g["white"]["username"].lower() == username.lower()
+                    else g["black"]["result"]
+                ),
+                "url": g.get("url"),
+                "pgn": g.get("pgn"),
+                "time_control": g.get("time_control"),
+                "end_time": g.get("end_time"),
+            })
+            if len(games) >= MAX_GAMES:
+                return games
 
-    result_list = []
-    for g in games:
-        game_data = {
-            "white": g["white"]["username"],
-            "black": g["black"]["username"],
-            "result": g["white"]["result"] if g["white"]["username"].lower() == username.lower() else g["black"]["result"],
-            "url": g.get("url"),
-            "pgn": g.get("pgn")
-        }
-        result_list.append(game_data)
-    return result_list
+    return games
 
-# Analyze a game with Stockfish + LLM
+# =========================
+# LLM analysis (OpenAI)
+# =========================
+
+def run_llm_analysis(analysis_data: dict) -> dict:
+    import openai
+
+    openai.api_key = OPENAI_API_KEY
+
+    prompt = f"""
+You are a chess coach.
+
+Analyze the following chess game evaluation and provide a clear, human explanation
+for each phase of the game:
+- Opening
+- Middlegame
+- Endgame
+
+Focus on ideas, plans, and common mistakes.
+Avoid long tactical variations.
+
+Game evaluation data:
+{analysis_data}
+"""
+
+    response = openai.ChatCompletion.create(
+        model=OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.4,
+    )
+
+    text = response.choices[0].message.content
+
+    return {
+        "opening": extract_section(text, "Opening"),
+        "middlegame": extract_section(text, "Middlegame"),
+        "endgame": extract_section(text, "Endgame"),
+    }
+
+def extract_section(text: str, title: str) -> str:
+    for block in text.split("\n\n"):
+        if title.lower() in block.lower():
+            return block.strip()
+    return text.strip()
+
+# =========================
+# Game analysis endpoint
+# =========================
+
 @app.post("/api/analyze")
-def analyze_game(payload: dict):
+def analyze_game(payload: dict, request: Request):
+    check_api_key(request)
+
     pgn_text = payload.get("pgn")
     if not pgn_text:
-        return JSONResponse({"error": "No PGN provided"}, status_code=400)
+        raise HTTPException(status_code=400, detail="PGN missing")
 
-    # Parse PGN
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     board = game.board()
 
-    # Initialize engine
     engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
+
     evaluations = []
+    move_count = 0
 
-    for i, move in enumerate(game.mainline_moves()):
-        board.push(move)
-        info = engine.analyse(board, chess.engine.Limit(depth=12))
-        score = info["score"].white().score(mate_score=10000)
-        evaluations.append({"move": board.san(move), "eval": score})
+    try:
+        for move in game.mainline_moves():
+            board.push(move)
+            move_count += 1
 
-    engine.quit()
+            info = engine.analyse(
+                board,
+                chess.engine.Limit(depth=12),
+                timeout=0.5
+            )
 
-    # Split phases roughly
-    total_moves = len(evaluations)
-    opening = evaluations[:total_moves//3]
-    middlegame = evaluations[total_moves//3: 2*total_moves//3]
-    endgame = evaluations[2*total_moves//3:]
+            score = info["score"].white().score(mate_score=10000)
+            evaluations.append({
+                "move_number": move_count,
+                "san": board.san(move),
+                "evaluation": score
+            })
 
-    analysis_json = {
+    finally:
+        engine.quit()
+
+    # Split into phases (simple & robust)
+    total = len(evaluations)
+    opening = evaluations[: total // 3]
+    middlegame = evaluations[total // 3 : 2 * total // 3]
+    endgame = evaluations[2 * total // 3 :]
+
+    analysis_data = {
         "opening": opening,
         "middlegame": middlegame,
-        "endgame": endgame
+        "endgame": endgame,
     }
 
-    # Call LLM for textual explanation
-    textual_analysis = llm_analysis(analysis_json)
+    llm_text = run_llm_analysis(analysis_data)
 
     return {
-        "evaluation": analysis_json,
-        "textual_analysis": textual_analysis
+        "phases": analysis_data,
+        "analysis": llm_text
     }
+
+# =========================
+# Health check (Render)
+# =========================
+
+@app.get("/health")
+def health():
