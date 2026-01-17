@@ -115,21 +115,21 @@ def get_last_games(username: str, request: Request):
 # =========================
 def run_llm_analysis(all_games_eval: list) -> dict:
     """
-    Receives a list of game evaluations (opening/middlegame/endgame) and returns
-    a global JSON analysis for frontend consumption.
+    Receives a list of game evaluations (opening/middlegame/endgame)
+    and returns a global summary in structured JSON.
     """
     import openai
     import json
 
     openai.api_key = OPENAI_API_KEY
 
-    # Convert evaluation data into JSON string for LLM prompt
     analysis_data_json = json.dumps(all_games_eval, indent=2)
 
     prompt = f"""
 You are a chess coach.
 
-Analyze the following chess game evaluations (multiple games) and provide a **global summary**.
+Analyze the following chess game evaluations (multiple games) and provide a **global summary**
+from the perspective of the user whose games are provided.
 Return the result in **JSON** format exactly like this:
 
 {{
@@ -138,7 +138,7 @@ Return the result in **JSON** format exactly like this:
   "endgame": "...summary of endgame ideas/mistakes..."
 }}
 
-Focus on common mistakes, plans, and patterns across all games.
+Focus on patterns, common mistakes, and plans across all games.
 Do not include move-by-move analysis.
 
 Game evaluation data:
@@ -153,7 +153,7 @@ Game evaluation data:
 
     text = response.choices[0].message.content
 
-    # Try parsing JSON; fallback if LLM returns invalid JSON
+    # Try parsing JSON; fallback to raw text if parsing fails
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -162,7 +162,6 @@ Game evaluation data:
             "middlegame": text,
             "endgame": text
         }
-
 
 def extract_section(text: str, title: str) -> str:
     for block in text.split("\n\n"):
@@ -234,9 +233,18 @@ def analyze_game(payload: dict, request: Request):
 # =========================
 @app.post("/api/analyze-all")
 def analyze_all_games(payload: dict, request: Request):
-    # check_api_key(request)
+    """
+    Analyze all games for a given user in one request.
+    Evaluations are normalized relative to the username.
+    Returns per-game evaluations + global LLM analysis.
+    """
+    #check_api_key(request)
 
+    username = payload.get("username")
     pgns = payload.get("pgns")
+
+    if not username:
+        raise HTTPException(status_code=400, detail="Username missing")
     if not pgns or not isinstance(pgns, list):
         raise HTTPException(status_code=400, detail="PGNs missing or invalid")
 
@@ -244,7 +252,7 @@ def analyze_all_games(payload: dict, request: Request):
     all_evaluations = []
 
     try:
-        for pgn_text in pgns:
+        for g_idx, pgn_text in enumerate(pgns):
             if not pgn_text:
                 continue
 
@@ -255,11 +263,14 @@ def analyze_all_games(payload: dict, request: Request):
             board = game.board()
             evaluations = []
 
+            # Determine user color for this game
+            user_color = "white" if game.headers.get("White", "").lower() == username.lower() else "black"
+
             # Collect legal moves
             moves = [move for move in game.mainline_moves() if move is not None]
             total_moves = len(moves)
 
-            # Sample indices per phase for fast analysis
+            # Sample indices for each phase
             def sample_indices(n_samples, start, end):
                 if end - start <= n_samples:
                     return list(range(start, end))
@@ -273,7 +284,6 @@ def analyze_all_games(payload: dict, request: Request):
 
             # Iterate moves
             for i, move in enumerate(moves):
-                # Skip illegal moves but maintain board state
                 if move not in board.legal_moves:
                     board.push(move)
                     continue
@@ -292,22 +302,27 @@ def analyze_all_games(payload: dict, request: Request):
                 try:
                     info = engine.analyse(
                         board,
-                        chess.engine.Limit(depth=6, time=0.03)  # fast
+                        chess.engine.Limit(depth=6, time=0.03)
                     )
                     score = info["score"].white().score(mate_score=10000)
-                    evaluations.append({
-                        "move_number": i + 1,
-                        "san": san,
-                        "evaluation": score
-                    })
                 except chess.engine.EngineError:
-                    continue  # skip illegal UCI moves
+                    continue
 
-            # Split sampled moves into phases
-            total = len(evaluations)
-            opening = evaluations[: total // 3]
-            middlegame = evaluations[total // 3 : 2 * total // 3]
-            endgame = evaluations[2 * total // 3 :]
+                # Normalize score relative to user
+                if score is not None and user_color == "black":
+                    score = -score
+
+                evaluations.append({
+                    "move_number": i + 1,
+                    "san": san,
+                    "evaluation": score
+                })
+
+            # Split into phases
+            total_eval = len(evaluations)
+            opening = evaluations[: total_eval // 3]
+            middlegame = evaluations[total_eval // 3 : 2 * total_eval // 3]
+            endgame = evaluations[2 * total_eval // 3 :]
 
             all_evaluations.append({
                 "opening": opening,
@@ -318,12 +333,12 @@ def analyze_all_games(payload: dict, request: Request):
     finally:
         engine.quit()
 
-    # Global LLM analysis (structured JSON)
+    # Generate global LLM analysis
     llm_text = run_llm_analysis(all_evaluations)
 
     return {
-        "phases": all_evaluations,        # per-game evaluation
-        "textual_analysis": llm_text      # structured LLM summary
+        "phases": all_evaluations,
+        "textual_analysis": llm_text
     }
 
 # =========================
