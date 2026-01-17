@@ -16,15 +16,21 @@ done
 echo "Extracting Stockfish..."
 tar -xf stockfish.tar
 
+echo "Listing current directory (detailed):"
+ls -la
+
+STOCKFISH_BIN="stockfish/stockfish-ubuntu-x86-64-avx2"
+
+
 # Find the stockfish binary inside the extracted folder
-STOCKFISH_BIN=$(find . -type f -name "stockfish" | head -n 1)
+#STOCKFISH_BIN=$(find . -type f -name "stockfish" | head -n 1)
 
-if [ -z "$STOCKFISH_BIN" ]; then
-  echo "Stockfish binary not found!"
-  exit 1
-fi
+#if [ -z "$STOCKFISH_BIN" ]; then
+#  echo "Stockfish binary not found!"
+#  exit 1
+#fi
 
-echo "Found Stockfish at $STOCKFISH_BIN"
+#echo "Found Stockfish at $STOCKFISH_BIN"
 
 mv "$STOCKFISH_BIN" stockfish
 chmod +x stockfish
