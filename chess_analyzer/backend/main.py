@@ -200,3 +200,4 @@ def analyze_game(payload: dict, request: Request):
 
 @app.get("/health")
 def health():
+    return {"status": "ok"}
