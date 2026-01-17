@@ -72,7 +72,7 @@
 
 <div id="inputRow">
     <label>
-        <img src="https://upload.wikimedia.org/wikipedia/commons/3/3b/Chess_com_logo.svg" 
+        <img src="https://images.chesscomfiles.com/uploads/v1/images_users/tiny_mce/Chesscom-Logo-Transparent.png" 
              alt="Chess.com" width="24" height="24" />
         Chess.com Username:
         <input type="text" id="username" />
@@ -94,14 +94,14 @@
 <h2>LLM Analysis (All Games)</h2>
 <div id="analysis"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
 <script>
 let board = null;
 let game = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-    game = new Chess();  // Initialize empty chess game
+    game = new Chess();
     board = Chessboard('chessboard', {
         position: 'start',
         showNotation: true,
@@ -132,10 +132,10 @@ async function fetchGames() {
         tbody.appendChild(tr);
     });
 
-    window.gameData = games;  // store globally
+    window.gameData = games;
     document.getElementById("gamesTable").style.display = "table";
 
-    // Show the Analyze button now that games are fetched
+    // Show Analyze button now
     document.getElementById("analyzeBtn").style.display = "inline-block";
 }
 
@@ -158,33 +158,34 @@ async function analyzeAll() {
         const data = await res.json();
         let ta = data.textual_analysis;
 
-        function cleanLLMText(text) {
-            if (!text) return "";
-            return text
-                .replace(/^["']|["']$/g, '')
-                .replace(/\\n/g, '\n')
-                .replace(/\\r/g, '')
-                .replace(/\\"/g, '"');
+        // Robust parsing if LLM returned string
+        if (typeof ta === "string") {
+            ta = ta.trim().replace(/^```json\s*/, '').replace(/```$/, '');
+            try { ta = JSON.parse(ta); } catch(e) {
+                ta = { openings: ta, middlegame: ta, endgame: ta };
+            }
         }
-        
+
         analysisDiv.innerHTML = `
             <div>
                 <h3>Opening</h3>
-                <pre>${cleanLLMText(ta.openings)}</pre>
+                <pre>${ta.openings || "No data"}</pre>
             </div>
             <div>
                 <h3>Middle Game</h3>
-                <pre>${cleanLLMText(ta.middlegame)}</pre>
+                <pre>${ta.middlegame || "No data"}</pre>
             </div>
             <div>
                 <h3>Endgame</h3>
-                <pre>${cleanLLMText(ta.endgame)}</pre>
+                <pre>${ta.endgame || "No data"}</pre>
             </div>
         `;
 
-        // Reset the board to start
-        game.reset();
-        board.position(game.fen());
+        // Reset chessboard safely
+        if (board && game) {
+            game.reset();
+            board.position(game.fen());
+        }
 
     } catch (err) {
         analysisDiv.innerHTML = `<p style="color:red;">Error analyzing games: ${err}</p>`;
