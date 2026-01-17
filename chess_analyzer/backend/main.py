@@ -60,7 +60,7 @@ def get_last_games(username: str, request: Request):
     archives_url = f"https://api.chess.com/pub/player/{username}/games/archives"
     
     try:
-        archives_resp = requests.get(archives_url, verify=False, timeout=10)
+        archives_resp = requests.get(archives_url, timeout=10, verify="/etc/ssl/certs/ca-certificates.crt")
     except requests.RequestException as exc:
         # External service error / network problem
         raise HTTPException(status_code=502, detail="Upstream service unreachable") from exc
@@ -77,7 +77,7 @@ def get_last_games(username: str, request: Request):
 
     games = []
     for archive_url in reversed(archives):
-        month_games = requests.get(archive_url, timeout=10).json().get("games", [])
+        month_games = requests.get(archive_url, timeout=10, verify="/etc/ssl/certs/ca-certificates.crt").json().get("games", [])
         for g in reversed(month_games):
             games.append({
                 "white": g["white"]["username"],
