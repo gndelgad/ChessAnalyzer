@@ -4,6 +4,9 @@ import requests
 import chess
 import chess.pgn
 import chess.engine
+import subprocess
+import json
+import re
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -89,7 +92,6 @@ def get_last_games(username: str, request: Request):
     #     # Unexpected upstream status
     #     raise HTTPException(status_code=502, detail="Upstream service error")
 
-    url = f"https://api.chess.com/pub/player/{username}/games/archives"
     data = json.loads(curl_get(archives_url))
     archives = data.get("archives", [])
     
