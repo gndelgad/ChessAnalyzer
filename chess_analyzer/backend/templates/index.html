@@ -55,8 +55,8 @@
 <h1>Chess Game Analyzer</h1>
 
 <label>Chess.com Username: <input type="text" id="username" /></label>
-<button onclick="fetchGames()">Fetch Last 10 Games</button>
-<button onclick="analyzeAll()">Analyze All Games</button>
+<button id="fetchBtn" onclick="fetchGames()">Fetch Last 10 Games</button>
+<button id="analyzeBtn" onclick="analyzeAll()" style="display:none;">Analyze All Games</button>
 
 <table id="gamesTable" style="display:none">
     <thead>
@@ -71,8 +71,12 @@
 <script>
 async function fetchGames() {
     const username = document.getElementById("username").value;
+    if (!username) return alert("Enter a username");
+
     const res = await fetch(`/api/games/${username}`);
     const games = await res.json();
+
+    if (!games || games.length === 0) return alert("No games found");
 
     const tbody = document.querySelector("#gamesTable tbody");
     tbody.innerHTML = "";
@@ -85,40 +89,51 @@ async function fetchGames() {
         `;
         tbody.appendChild(tr);
     });
+
     window.gameData = games;  // store globally
     document.getElementById("gamesTable").style.display = "table";
+
+    // Show the Analyze button now that games are fetched
+    document.getElementById("analyzeBtn").style.display = "inline-block";
 }
 
 async function analyzeAll() {
     if (!window.gameData || window.gameData.length === 0) return alert("Fetch games first!");
-    const username = document.getElementById("username").value;
 
+    const username = document.getElementById("username").value;
     const pgns = window.gameData.map(g => g.pgn);
 
-    const res = await fetch("/api/analyze-all", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, pgns })
-    });
+    const analysisDiv = document.getElementById("analysis");
+    analysisDiv.innerHTML = `<p>Analyzing games, please wait...</p>`;
 
-    const data = await res.json();
-    const ta = data.textual_analysis;
+    try {
+        const res = await fetch("/api/analyze-all", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, pgns })
+        });
 
-    // Display sections cleanly
-    document.getElementById("analysis").innerHTML = `
-        <div>
-            <h3>Openings (All Games)</h3>
-            <pre>${ta.openings}</pre>
-        </div>
-        <div>
-            <h3>Middlegame Themes</h3>
-            <pre>${ta.middlegame}</pre>
-        </div>
-        <div>
-            <h3>Endgames</h3>
-            <pre>${ta.endgame}</pre>
-        </div>
-    `;
+        const data = await res.json();
+        const ta = data.textual_analysis;
+
+        // Display cleanly with the proper titles
+        analysisDiv.innerHTML = `
+            <div>
+                <h3>Opening</h3>
+                <pre>${ta.openings}</pre>
+            </div>
+            <div>
+                <h3>Middle Game</h3>
+                <pre>${ta.middlegame}</pre>
+            </div>
+            <div>
+                <h3>Endgame</h3>
+                <pre>${ta.endgame}</pre>
+            </div>
+        `;
+    } catch (err) {
+        analysisDiv.innerHTML = `<p style="color:red;">Error analyzing games: ${err}</p>`;
+    }
 }
 </script>
 </body>
