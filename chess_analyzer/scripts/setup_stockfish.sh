@@ -8,6 +8,11 @@ curl -L \
   https://github.com/official-stockfish/Stockfish/releases/latest/download/stockfish-ubuntu-x86-64-avx2.tar \
   -o stockfish.tar
 
+# Wait until the file exists and is fully downloaded
+while [ ! -s stockfish.tar ]; do
+  sleep 1
+done
+
 echo "Extracting Stockfish..."
 tar -xf stockfish.tar
 
