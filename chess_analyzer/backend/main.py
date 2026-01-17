@@ -60,7 +60,7 @@ def get_last_games(username: str, request: Request):
     archives_url = f"https://api.chess.com/pub/player/{username}/games/archives"
     
     try:
-        archives_resp = requests.get(archives_url, timeout=10)
+        archives_resp = requests.get(archives_url, verify=False, timeout=10)
     except requests.RequestException as exc:
         # External service error / network problem
         raise HTTPException(status_code=502, detail="Upstream service unreachable") from exc
