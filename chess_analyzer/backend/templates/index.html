@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Chess Game Analyzer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
 <style>
     body {
         font-family: Arial, sans-serif;
@@ -49,14 +50,39 @@
     #analysis > div {
         margin-bottom: 20px;
     }
+    #inputRow {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    #inputRow label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    #chessboard {
+        width: 320px;
+        margin-top: 20px;
+    }
 </style>
 </head>
 <body>
 <h1>Chess Game Analyzer</h1>
 
-<label>Chess.com Username: <input type="text" id="username" /></label>
-<button id="fetchBtn" onclick="fetchGames()">Fetch Last 10 Games</button>
-<button id="analyzeBtn" onclick="analyzeAll()" style="display:none;">Analyze All Games</button>
+<div id="inputRow">
+    <label>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/3/3b/Chess_com_logo.svg" 
+             alt="Chess.com" width="24" height="24" />
+        Chess.com Username:
+        <input type="text" id="username" />
+    </label>
+    <button id="fetchBtn" onclick="fetchGames()">Fetch Last 10 Games</button>
+    <button id="analyzeBtn" onclick="analyzeAll()" style="display:none;">Analyze All Games</button>
+</div>
+
+<!-- Dynamic Chessboard -->
+<div id="chessboard"></div>
 
 <table id="gamesTable" style="display:none">
     <thead>
@@ -68,7 +94,23 @@
 <h2>LLM Analysis (All Games)</h2>
 <div id="analysis"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
+let board = null;
+let game = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+    game = new Chess();  // Initialize empty chess game
+    board = Chessboard('chessboard', {
+        position: 'start',
+        showNotation: true,
+        draggable: true,
+        dropOffBoard: 'trash',
+        sparePieces: false
+    });
+});
+
 async function fetchGames() {
     const username = document.getElementById("username").value;
     if (!username) return alert("Enter a username");
@@ -116,32 +158,34 @@ async function analyzeAll() {
         const data = await res.json();
         let ta = data.textual_analysis;
 
-        // If textual_analysis is a string (JSON inside a string), parse it
-        if (typeof ta === "string") {
-            try {
-                ta = JSON.parse(ta);
-            } catch (e) {
-                console.error("Failed to parse textual_analysis:", e);
-                // fallback: show the raw string in all sections
-                ta = { openings: ta, middlegame: ta, endgame: ta };
-            }
+        function cleanLLMText(text) {
+            if (!text) return "";
+            return text
+                .replace(/^["']|["']$/g, '')
+                .replace(/\\n/g, '\n')
+                .replace(/\\r/g, '')
+                .replace(/\\"/g, '"');
         }
-
-        // Display cleanly with the proper titles
+        
         analysisDiv.innerHTML = `
             <div>
                 <h3>Opening</h3>
-                <pre>${ta.openings || "No data"}</pre>
+                <pre>${cleanLLMText(ta.openings)}</pre>
             </div>
             <div>
                 <h3>Middle Game</h3>
-                <pre>${ta.middlegame || "No data"}</pre>
+                <pre>${cleanLLMText(ta.middlegame)}</pre>
             </div>
             <div>
                 <h3>Endgame</h3>
-                <pre>${ta.endgame || "No data"}</pre>
+                <pre>${cleanLLMText(ta.endgame)}</pre>
             </div>
         `;
+
+        // Reset the board to start
+        game.reset();
+        board.position(game.fen());
+
     } catch (err) {
         analysisDiv.innerHTML = `<p style="color:red;">Error analyzing games: ${err}</p>`;
     }
