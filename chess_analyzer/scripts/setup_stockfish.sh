@@ -2,10 +2,10 @@
 
 set -e
 
-echo "Updating certificates..."
+#echo "Updating certificates..."
 
-apt-get update && apt-get install -y ca-certificates
-update-ca-certificates
+#apt-get update && apt-get install -y ca-certificates
+#update-ca-certificates
 
 echo "=== Checking OpenSSL Version ==="
 openssl version
