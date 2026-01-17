@@ -55,7 +55,7 @@ def index(request: Request):
 
 @app.get("/api/games/{username}")
 def get_last_games(username: str, request: Request):
-    check_api_key(request)
+    #check_api_key(request)
 
     archives_url = f"https://api.chess.com/pub/player/{username}/games/archives"
     archives_resp = requests.get(archives_url, timeout=10)
@@ -140,7 +140,7 @@ def extract_section(text: str, title: str) -> str:
 
 @app.post("/api/analyze")
 def analyze_game(payload: dict, request: Request):
-    check_api_key(request)
+    #check_api_key(request)
 
     pgn_text = payload.get("pgn")
     if not pgn_text:
