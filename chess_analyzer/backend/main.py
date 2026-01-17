@@ -130,14 +130,15 @@ You are a chess coach.
 
 Analyze the following chess game evaluations (multiple games) and provide a **global summary**
 from the perspective of the user whose games are provided.
-Return the result in **JSON** format exactly like this:
+Return the result in **strict JSON format** exactly like this (no extra brackets or markdown):
 
-{{
+{
   "openings": "...summary of common opening ideas/mistakes...",
   "middlegame": "...summary of middlegame ideas/mistakes...",
   "endgame": "...summary of endgame ideas/mistakes..."
-}}
+}
 
+Do not include markdown code blocks, explanations, or backticks.
 Focus on patterns, common mistakes, and plans across all games.
 Do not include move-by-move analysis.
 
