@@ -114,21 +114,32 @@ async function analyzeAll() {
         });
 
         const data = await res.json();
-        const ta = data.textual_analysis;
+        let ta = data.textual_analysis;
+
+        // If textual_analysis is a string (JSON inside a string), parse it
+        if (typeof ta === "string") {
+            try {
+                ta = JSON.parse(ta);
+            } catch (e) {
+                console.error("Failed to parse textual_analysis:", e);
+                // fallback: show the raw string in all sections
+                ta = { openings: ta, middlegame: ta, endgame: ta };
+            }
+        }
 
         // Display cleanly with the proper titles
         analysisDiv.innerHTML = `
             <div>
                 <h3>Opening</h3>
-                <pre>${ta.openings}</pre>
+                <pre>${ta.openings || "No data"}</pre>
             </div>
             <div>
                 <h3>Middle Game</h3>
-                <pre>${ta.middlegame}</pre>
+                <pre>${ta.middlegame || "No data"}</pre>
             </div>
             <div>
                 <h3>Endgame</h3>
-                <pre>${ta.endgame}</pre>
+                <pre>${ta.endgame || "No data"}</pre>
             </div>
         `;
     } catch (err) {
