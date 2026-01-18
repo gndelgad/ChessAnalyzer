@@ -86,7 +86,7 @@
 
 <table id="gamesTable" style="display:none">
     <thead>
-        <tr><th>White</th><th>Black</th><th>Result</th></tr>
+        <tr><th>White</th><th>Black</th><th>Result</th><th>Accuracy</th><th>Blunders</th><th>URL</th></tr>
     </thead>
     <tbody></tbody>
 </table>
@@ -128,6 +128,9 @@ async function fetchGames() {
             <td>${g.white}</td>
             <td>${g.black}</td>
             <td>${g.result}</td>
+            <td>${g.accuracy}</td>
+            <td>${g.blunders}</td>
+            <td>${g.url}</td>
         `;
         tbody.appendChild(tr);
     });
