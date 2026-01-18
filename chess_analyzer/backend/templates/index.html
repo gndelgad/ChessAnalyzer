@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <title>Chess Game Analyzer</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
+
 <style>
     body {
         font-family: Arial, sans-serif;
         margin: 40px;
-        background-color: #121212;
+        background-color: #0b1c3d; /* deep blue */
         color: #f0f0f0;
     }
     table {
@@ -61,56 +61,43 @@
         align-items: center;
         gap: 6px;
     }
-    #chessboard {
-        width: 320px;
-        margin-top: 20px;
-    }
 </style>
 </head>
+
 <body>
 <h1>Chess Game Analyzer</h1>
 
 <div id="inputRow">
     <label>
-        <img src="https://images.chesscomfiles.com/uploads/v1/images_users/tiny_mce/Chesscom-Logo-Transparent.png" 
-             alt="Chess.com" width="24" height="24" />
         Chess.com Username:
         <input type="text" id="username" />
     </label>
     <button id="fetchBtn" onclick="fetchGames()">Fetch Last 10 Games</button>
-    <button id="analyzeBtn" onclick="analyzeAll()" style="display:none;">Analyze All Games</button>
 </div>
-
-<!-- Dynamic Chessboard -->
-<div id="chessboard"></div>
 
 <table id="gamesTable" style="display:none">
     <thead>
-        <tr><th>White</th><th>Black</th><th>Result</th><th>Accuracy</th><th>Blunders</th><th>URL</th></tr>
+        <tr>
+            <th>White</th>
+            <th>Black</th>
+            <th>Result</th>
+            <th>Accuracy</th>
+            <th>Blunders</th>
+            <th>URL</th>
+        </tr>
     </thead>
     <tbody></tbody>
 </table>
 
+<!-- Analyze button now appears BELOW the games matrix -->
+<button id="analyzeBtn" onclick="analyzeAll()" style="display:none;">
+    Analyze All Games
+</button>
+
 <h2>LLM Analysis (All Games)</h2>
 <div id="analysis"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
 <script>
-let board = null;
-let game = null;
-
-document.addEventListener("DOMContentLoaded", () => {
-    game = new Chess();
-    board = Chessboard('chessboard', {
-        position: 'start',
-        showNotation: true,
-        draggable: true,
-        dropOffBoard: 'trash',
-        sparePieces: false
-    });
-});
-
 async function fetchGames() {
     const username = document.getElementById("username").value;
     if (!username) return alert("Enter a username");
@@ -138,12 +125,13 @@ async function fetchGames() {
     window.gameData = games;
     document.getElementById("gamesTable").style.display = "table";
 
-    // Show Analyze button now
+    // Show Analyze button now (logic unchanged)
     document.getElementById("analyzeBtn").style.display = "inline-block";
 }
 
 async function analyzeAll() {
-    if (!window.gameData || window.gameData.length === 0) return alert("Fetch games first!");
+    if (!window.gameData || window.gameData.length === 0)
+        return alert("Fetch games first!");
 
     const username = document.getElementById("username").value;
     const pgns = window.gameData.map(g => g.pgn);
@@ -161,10 +149,10 @@ async function analyzeAll() {
         const data = await res.json();
         let ta = data.textual_analysis;
 
-        // Robust parsing if LLM returned string
         if (typeof ta === "string") {
             ta = ta.trim().replace(/^```json\s*/, '').replace(/```$/, '');
-            try { ta = JSON.parse(ta); } catch(e) {
+            try { ta = JSON.parse(ta); }
+            catch {
                 ta = { openings: ta, middlegame: ta, endgame: ta };
             }
         }
@@ -183,15 +171,9 @@ async function analyzeAll() {
                 <pre>${ta.endgame || "No data"}</pre>
             </div>
         `;
-
-        // Reset chessboard safely
-        if (board && game) {
-            game.reset();
-            board.position(game.fen());
-        }
-
     } catch (err) {
-        analysisDiv.innerHTML = `<p style="color:red;">Error analyzing games: ${err}</p>`;
+        analysisDiv.innerHTML =
+            `<p style="color:red;">Error analyzing games: ${err}</p>`;
     }
 }
 </script>
