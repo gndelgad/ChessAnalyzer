@@ -126,7 +126,7 @@ def run_llm_analysis(all_games_eval: list) -> dict:
     analysis_data_json = json.dumps(all_games_eval, indent=2)
 
     prompt = f"""
-You are a chess coach.
+You are a chess coach whose objective is to help his student to massively improve their level to become a ELO 1200.
 
 Analyze the following chess game evaluations (multiple games) and provide a **global summary**
 and **recommendations to improve**
@@ -139,10 +139,9 @@ Return the result in **strict JSON format** exactly like this (no extra brackets
   "endgame": "...summary of endgame ideas/mistakes/improvements..."
 }}
 
-Do not include markdown code blocks, explanations, or backticks.
 Focus on patterns, common mistakes, and plans across all games to highlight improvement axist.
 Be concrete with your recommendations. For example improve pawn structure, activate your towers or castle sooner, occupy the center, avoid typical
-opening traps, etc.
+opening traps, etc. Give extensive recommendations and concrete examples. DO NOT LIMIT JUST TO EXPLAIN GLOBAL PATTERNS, BE PRACTICAL AND CONCRETE!
 
 Game evaluation data:
 {analysis_data_json}
