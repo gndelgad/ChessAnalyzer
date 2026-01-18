@@ -131,7 +131,10 @@ async function analyzeAllGames() {
     const res = await fetch("/api/analyze_all", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ games: gameData })
+        body: JSON.stringify({
+            games: gameData,
+            username: document.getElementById("username").value
+        })
     });
 
     const data = await res.json();
