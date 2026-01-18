@@ -134,9 +134,9 @@ from the perspective of the user whose games are provided.
 Return the result in **strict JSON format** exactly like this (no extra brackets or markdown):
 
 {{
-  "openings": "...summary of common opening ideas/mistakes/improvements...",
-  "middlegame": "...summary of middlegame ideas/mistakes/improvements...",
-  "endgame": "...summary of endgame ideas/mistakes/improvements..."
+  "openings": "...Summary of common opening ideas/mistakes/improvements...",
+  "middlegame": "...Summary of middlegame ideas/mistakes/improvements...",
+  "endgame": "...Summary of endgame ideas/mistakes/improvements..."
 }}
 
 Focus on patterns, common mistakes, and plans across all games to highlight improvement axist.
@@ -156,9 +156,6 @@ Game evaluation data:
     text = response.choices[0].message.content
 
     # Try parsing JSON; fallback to raw text if parsing fails
-    # try:
-    #     print(text)
-    #     return json.loads(text)
     try:
         ans = json.loads(text)
         if isinstance(ans, str):
@@ -176,65 +173,6 @@ def extract_section(text: str, title: str) -> str:
         if title.lower() in block.lower():
             return block.strip()
     return text.strip()
-
-# =========================
-# Game analysis endpoint
-# =========================
-
-@app.post("/api/analyze")
-def analyze_game(payload: dict, request: Request):
-    #check_api_key(request)
-
-    pgn_text = payload.get("pgn")
-    if not pgn_text:
-        raise HTTPException(status_code=400, detail="PGN missing")
-
-    game = chess.pgn.read_game(io.StringIO(pgn_text))
-    board = game.board()
-
-    engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH)
-
-    evaluations = []
-    move_count = 0
-
-    try:
-        for move in game.mainline_moves():
-            board.push(move)
-            move_count += 1
-
-            info = engine.analyse(
-                board,
-                chess.engine.Limit(depth=12, time=0.5)
-            )
-
-            score = info["score"].white().score(mate_score=10000)
-            evaluations.append({
-                "move_number": move_count,
-                "san": board.san(move),
-                "evaluation": score
-            })
-
-    finally:
-        engine.quit()
-
-    # Split into phases (simple & robust)
-    total = len(evaluations)
-    opening = evaluations[: total // 3]
-    middlegame = evaluations[total // 3 : 2 * total // 3]
-    endgame = evaluations[2 * total // 3 :]
-
-    analysis_data = {
-        "opening": opening,
-        "middlegame": middlegame,
-        "endgame": endgame,
-    }
-
-    llm_text = run_llm_analysis(analysis_data)
-
-    return {
-        "phases": analysis_data,
-        "analysis": llm_text
-    }
 
 # =========================
 # Analyze all games at once
