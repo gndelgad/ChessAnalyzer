@@ -19,7 +19,7 @@ from fastapi.templating import Jinja2Templates
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 #APP_SECRET_KEY = os.environ.get("APP_SECRET_KEY")  # optional
 MAX_GAMES = int(os.environ.get("MAX_GAMES_ANALYZED", 10))
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5-mini")
 
 if not OPENAI_API_KEY:
     raise RuntimeError("OPENAI_API_KEY is not set")
