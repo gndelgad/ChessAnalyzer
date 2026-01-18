@@ -240,7 +240,7 @@ def analyze_game(payload: dict, request: Request):
 # =========================
 # Analyze all games at once
 # =========================
-@app.post("/api/analyze_all")
+@app.post("/api/analyze-all")
 def analyze_all_games(payload: dict, request: Request):
     """
     Analyze all games for a given user in one request.
