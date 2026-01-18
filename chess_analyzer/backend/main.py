@@ -150,7 +150,7 @@ Game evaluation data:
     response = openai.ChatCompletion.create(
         model=OPENAI_MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.4,
+        #temperature=0.4,
     )
 
     text = response.choices[0].message.content
