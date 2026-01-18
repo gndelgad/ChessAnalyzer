@@ -92,13 +92,19 @@ def get_last_games(username: str, request: Request):
         month_games = data.get("games", [])
         #month_games = requests.get(archive_url, timeout=10, ).json().get("games", [])
         for g in reversed(month_games):
+            is_white = g["white"]["username"].lower() == username.lower()
+            color = "white" if is_white else "black"
             games.append({
                 "white": g["white"]["username"],
                 "black": g["black"]["username"],
-                "result": (
-                    g["white"]["result"]
-                    if g["white"]["username"].lower() == username.lower()
-                    else g["black"]["result"]
+                "result": g[color]["result"],
+                "accuracy": (
+                    g.get("accuracies", {}).get(color)
+                ),
+                "blunders": (
+                    g.get("analysis", {})
+                     .get(color, {})
+                     .get("blunders")
                 ),
                 "url": g.get("url"),
                 "pgn": g.get("pgn"),
