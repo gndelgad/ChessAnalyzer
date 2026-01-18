@@ -157,14 +157,14 @@ Game evaluation data:
     text = response.choices[0].message.content
 
     # Try parsing JSON; fallback to raw text if parsing fails
-    try:
-        print(text)
-        return json.loads(text)
     # try:
-    #     ans = json.loads(text)
-    #     if isinstance(ans, str):
-    #         return json.loads(ans)    
-    #     return ans
+    #     print(text)
+    #     return json.loads(text)
+    try:
+        ans = json.loads(text)
+        if isinstance(ans, str):
+            return json.loads(ans)    
+        return ans
     except json.JSONDecodeError:
         return {
             "openings": text,
@@ -240,7 +240,7 @@ def analyze_game(payload: dict, request: Request):
 # =========================
 # Analyze all games at once
 # =========================
-@app.post("/api/analyze-all")
+@app.post("/api/analyze_all")
 def analyze_all_games(payload: dict, request: Request):
     """
     Analyze all games for a given user in one request.
