@@ -158,7 +158,10 @@ Game evaluation data:
 
     # Try parsing JSON; fallback to raw text if parsing fails
     try:
-        return json.loads(text)
+        ans = json.loads(text)
+        if isinstance(ans, str):
+            return json.loads(ans)    
+        return ans
     except json.JSONDecodeError:
         return {
             "openings": text,
