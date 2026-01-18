@@ -3,125 +3,110 @@
 <head>
 <meta charset="UTF-8">
 <title>Chess Game Analyzer</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css" />
+
 <style>
     body {
         font-family: Arial, sans-serif;
         margin: 40px;
-        background-color: #121212;
-        color: #f0f0f0;
+        background-color: #0f172a;
+        color: #e5e7eb;
     }
+
+    input, button {
+        padding: 8px;
+        font-size: 14px;
+    }
+
+    button {
+        margin-left: 8px;
+        cursor: pointer;
+    }
+
     table {
         border-collapse: collapse;
         margin-top: 20px;
         width: 100%;
     }
-    td, th {
-        border: 1px solid #444;
+
+    th, td {
+        border: 1px solid #334155;
         padding: 8px;
+        text-align: left;
     }
-    button {
-        margin-top: 10px;
-        padding: 5px 10px;
-        cursor: pointer;
-        background-color: #333;
-        color: #f0f0f0;
-        border: 1px solid #555;
-        border-radius: 4px;
+
+    th {
+        background-color: #1e293b;
     }
-    input {
-        padding: 4px 6px;
-        border-radius: 4px;
-        border: 1px solid #555;
-        background-color: #222;
-        color: #f0f0f0;
-    }
-    h1, h2, h3 {
-        margin-top: 20px;
-    }
+
     pre {
-        background-color: #1e1e1e;
-        padding: 10px;
-        overflow-x: auto;
         white-space: pre-wrap;
         word-wrap: break-word;
+        background-color: #020617;
+        padding: 12px;
         border-radius: 6px;
+        color: #e5e7eb;
+        max-width: 900px;
     }
-    #analysis > div {
-        margin-bottom: 20px;
+
+    #analyzeBtn {
+        display: none;
+        margin-top: 15px;
     }
-    #inputRow {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-        margin-bottom: 20px;
-    }
-    #inputRow label {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
-    #chessboard {
-        width: 320px;
-        margin-top: 20px;
+
+    #status {
+        margin-top: 15px;
+        font-style: italic;
+        color: #93c5fd;
     }
 </style>
 </head>
+
 <body>
+
 <h1>Chess Game Analyzer</h1>
 
-<div id="inputRow">
-    <label>
-        <img src="https://images.chesscomfiles.com/uploads/v1/images_users/tiny_mce/Chesscom-Logo-Transparent.png" 
-             alt="Chess.com" width="24" height="24" />
-        Chess.com Username:
-        <input type="text" id="username" />
-    </label>
-    <button id="fetchBtn" onclick="fetchGames()">Fetch Last 10 Games</button>
-    <button id="analyzeBtn" onclick="analyzeAll()" style="display:none;">Analyze All Games</button>
-</div>
+<label>
+    Chess.com Username:
+    <input type="text" id="username" />
+</label>
 
-<!-- Dynamic Chessboard -->
-<div id="chessboard"></div>
+<button onclick="fetchGames()">Fetch Last 10 Games</button>
 
 <table id="gamesTable" style="display:none">
     <thead>
-        <tr><th>White</th><th>Black</th><th>Result</th></tr>
+        <tr>
+            <th>White</th>
+            <th>Black</th>
+            <th>Result</th>
+        </tr>
     </thead>
     <tbody></tbody>
 </table>
 
-<h2>LLM Analysis (All Games)</h2>
+<button id="analyzeBtn" onclick="analyzeAllGames()">Analyze All Games</button>
+
+<div id="status"></div>
+
+<h2>Global Analysis</h2>
 <div id="analysis"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
 <script>
-let board = null;
-let game = null;
-
-document.addEventListener("DOMContentLoaded", () => {
-    game = new Chess();
-    board = Chessboard('chessboard', {
-        position: 'start',
-        showNotation: true,
-        draggable: true,
-        dropOffBoard: 'trash',
-        sparePieces: false
-    });
-});
+let gameData = [];
 
 async function fetchGames() {
-    const username = document.getElementById("username").value;
-    if (!username) return alert("Enter a username");
+    const username = document.getElementById("username").value.trim();
+    if (!username) return;
+
+    document.getElementById("status").innerText = "Fetching games...";
+    document.getElementById("analysis").innerHTML = "";
+    document.getElementById("analyzeBtn").style.display = "none";
 
     const res = await fetch(`/api/games/${username}`);
     const games = await res.json();
 
-    if (!games || games.length === 0) return alert("No games found");
-
     const tbody = document.querySelector("#gamesTable tbody");
     tbody.innerHTML = "";
+
     games.forEach(g => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -132,65 +117,50 @@ async function fetchGames() {
         tbody.appendChild(tr);
     });
 
-    window.gameData = games;
-    document.getElementById("gamesTable").style.display = "table";
+    gameData = games;
 
-    // Show Analyze button now
+    document.getElementById("gamesTable").style.display = "table";
     document.getElementById("analyzeBtn").style.display = "inline-block";
+    document.getElementById("status").innerText = "";
 }
 
-async function analyzeAll() {
-    if (!window.gameData || window.gameData.length === 0) return alert("Fetch games first!");
+async function analyzeAllGames() {
+    document.getElementById("status").innerText = "Analyzing games… please wait.";
+    document.getElementById("analysis").innerHTML = "";
 
-    const username = document.getElementById("username").value;
-    const pgns = window.gameData.map(g => g.pgn);
+    const res = await fetch("/api/analyze_all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ games: gameData })
+    });
 
-    const analysisDiv = document.getElementById("analysis");
-    analysisDiv.innerHTML = `<p>Analyzing games, please wait...</p>`;
+    const data = await res.json();
 
-    try {
-        const res = await fetch("/api/analyze-all", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, pgns })
-        });
+    let ta = data.textual_analysis;
 
-        const data = await res.json();
-        let ta = data.textual_analysis;
-
-        // Robust parsing if LLM returned string
-        if (typeof ta === "string") {
-            ta = ta.trim().replace(/^```json\s*/, '').replace(/```$/, '');
-            try { ta = JSON.parse(ta); } catch(e) {
-                ta = { openings: ta, middlegame: ta, endgame: ta };
-            }
-        }
-
-        analysisDiv.innerHTML = `
-            <div>
-                <h3>Opening</h3>
-                <pre>${ta.openings || "No data"}</pre>
-            </div>
-            <div>
-                <h3>Middle Game</h3>
-                <pre>${ta.middlegame || "No data"}</pre>
-            </div>
-            <div>
-                <h3>Endgame</h3>
-                <pre>${ta.endgame || "No data"}</pre>
-            </div>
-        `;
-
-        // Reset chessboard safely
-        if (board && game) {
-            game.reset();
-            board.position(game.fen());
-        }
-
-    } catch (err) {
-        analysisDiv.innerHTML = `<p style="color:red;">Error analyzing games: ${err}</p>`;
+    // Parse strict JSON from backend
+    if (typeof ta === "string") {
+        ta = JSON.parse(ta);
     }
+
+    document.getElementById("analysis").innerHTML = `
+        <div>
+            <h3>Opening</h3>
+            <pre>${ta.openings}</pre>
+        </div>
+        <div>
+            <h3>Middle Game</h3>
+            <pre>${ta.middlegame}</pre>
+        </div>
+        <div>
+            <h3>Endgame</h3>
+            <pre>${ta.endgame}</pre>
+        </div>
+    `;
+
+    document.getElementById("status").innerText = "";
 }
 </script>
+
 </body>
 </html>
